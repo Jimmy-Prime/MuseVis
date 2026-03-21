@@ -57,6 +57,10 @@ void FFTProcessor::process(const float* stereoFrames, int numFrames) {
 void FFTProcessor::computeBands() {
     auto& back = state_.backBuffer();
 
+    // dB-scale mapping: show DYNAMIC_RANGE_DB of range below the running peak.
+    // This lets quiet high-frequency content remain visible even when bass dominates.
+    constexpr float DYNAMIC_RANGE_DB = 48.0f;
+
     float maxMag = 0.0f;
     std::array<float, NUM_BANDS> rawMags{};
 
@@ -79,13 +83,21 @@ void FFTProcessor::computeBands() {
             maxMag = rawMags[b];
     }
 
-    // Slowly-decaying running maximum for auto-normalization
+    // Slowly-decaying running maximum (global reference for 0 dB)
     runningMax_ = std::max(runningMax_ * 0.9999, static_cast<double>(maxMag));
     runningMax_ = std::max(runningMax_, 1e-9);
 
-    const float norm = static_cast<float>(runningMax_);
-    for (int b = 0; b < NUM_BANDS; ++b)
-        back.magnitudes[b] = std::min(1.0f, rawMags[b] / norm);
+    const float refMax = static_cast<float>(runningMax_);
+    for (int b = 0; b < NUM_BANDS; ++b) {
+        if (rawMags[b] < 1e-10f) {
+            back.magnitudes[b] = 0.0f;
+        } else {
+            // dB relative to running max: 0 dB = loudest, negative = quieter
+            float db = 20.0f * std::log10(rawMags[b] / refMax);
+            // Map [-DYNAMIC_RANGE_DB, 0] → [0, 1]
+            back.magnitudes[b] = std::clamp(1.0f + db / DYNAMIC_RANGE_DB, 0.0f, 1.0f);
+        }
+    }
 
     state_.swapBuffers();
 }

@@ -28,6 +28,8 @@ private:
 
     // Per-band smoothed magnitudes (attack/decay filter state)
     std::array<float, NUM_BANDS> smoothed_{};
+    uint64_t lastFrame_{0};
+    int staleCount_{0};
 };
 
 } // namespace musevis

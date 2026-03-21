@@ -26,6 +26,8 @@ private:
     std::thread thread_;
     std::array<float, NUM_BANDS> smoothed_{};
     std::array<float, NUM_BANDS> peaks_{};     // peak-hold indicators
+    uint64_t lastFrame_{0};                    // detect stale audio data
+    int staleCount_{0};                        // frames since last audio update
 };
 
 } // namespace musevis

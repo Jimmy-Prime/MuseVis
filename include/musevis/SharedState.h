@@ -21,6 +21,7 @@ struct BandData {
 struct SharedState {
     BandData buffers[2];
     std::atomic<int> frontIndex{0};
+    std::atomic<uint64_t> frameCounter{0};  // incremented by audio thread each FFT
 
     BandData& backBuffer() {
         return buffers[1 - frontIndex.load(std::memory_order_acquire)];
@@ -29,10 +30,15 @@ struct SharedState {
     void swapBuffers() {
         int front = frontIndex.load(std::memory_order_acquire);
         frontIndex.store(1 - front, std::memory_order_release);
+        frameCounter.fetch_add(1, std::memory_order_release);
     }
 
     const BandData& frontBuffer() const {
         return buffers[frontIndex.load(std::memory_order_acquire)];
+    }
+
+    uint64_t frame() const {
+        return frameCounter.load(std::memory_order_acquire);
     }
 };
 

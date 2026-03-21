@@ -39,7 +39,21 @@ void RenderEngine::renderLoop() {
     auto nextFrame = clock::now();
 
     while (running_) {
-        buildFrame(state_.frontBuffer());
+        uint64_t currentFrame = state_.frame();
+        BandData data = state_.frontBuffer();
+
+        if (currentFrame == lastFrame_) {
+            staleCount_++;
+            if (staleCount_ > 6) {  // ~100ms at 60fps
+                for (auto& m : data.magnitudes)
+                    m = 0.0f;
+            }
+        } else {
+            lastFrame_ = currentFrame;
+            staleCount_ = 0;
+        }
+
+        buildFrame(data);
         nextFrame += frameDuration;
         std::this_thread::sleep_until(nextFrame);
     }

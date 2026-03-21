@@ -64,7 +64,24 @@ void TerminalRenderer::renderLoop() {
     auto nextFrame = clock::now();
 
     while (running_) {
-        drawFrame(state_.frontBuffer());
+        // Detect stale audio: if frameCounter hasn't advanced, audio thread
+        // is blocked (e.g. music paused). Force magnitudes toward zero.
+        uint64_t currentFrame = state_.frame();
+        BandData data = state_.frontBuffer();
+
+        if (currentFrame == lastFrame_) {
+            staleCount_++;
+            // After ~100ms of no updates (3 frames at 30fps), zero out
+            if (staleCount_ > 3) {
+                for (auto& m : data.magnitudes)
+                    m = 0.0f;
+            }
+        } else {
+            lastFrame_ = currentFrame;
+            staleCount_ = 0;
+        }
+
+        drawFrame(data);
         nextFrame += frameDuration;
         std::this_thread::sleep_until(nextFrame);
     }
