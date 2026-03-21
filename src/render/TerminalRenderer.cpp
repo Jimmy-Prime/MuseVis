@@ -10,10 +10,10 @@
 namespace musevis {
 
 namespace {
-    constexpr float ATTACK_COEFF    = 0.8f;
-    constexpr float DECAY_COEFF     = 0.15f;
-    constexpr float PEAK_DECAY      = 0.012f;  // slow fall for peak dots
-    constexpr int   TARGET_FPS      = 30;       // terminal doesn't need 60
+    constexpr float ATTACK_COEFF    = 0.2f;   // fast rise: 80% toward new value per frame
+    constexpr float DECAY_COEFF     = 0.92f;  // slow fall: 8% toward new value per frame
+    constexpr float PEAK_DECAY      = 0.012f; // slow fall for peak dots
+    constexpr int   TARGET_FPS      = 30;     // terminal doesn't need 60
     constexpr int   BAR_WIDTH       = 4;        // characters per band column
     constexpr int   DISPLAY_HEIGHT  = LEDS_PER_BAND;
 
@@ -71,8 +71,8 @@ void TerminalRenderer::renderLoop() {
 
         if (currentFrame == lastFrame_) {
             staleCount_++;
-            // After ~100ms of no updates (3 frames at 30fps), zero out
-            if (staleCount_ > 3) {
+            // After ~200ms of no updates (6 frames at 30fps), zero out
+            if (staleCount_ > 6) {
                 for (auto& m : data.magnitudes)
                     m = 0.0f;
             }

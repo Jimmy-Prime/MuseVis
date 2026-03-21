@@ -10,8 +10,8 @@
 namespace musevis {
 
 namespace {
-    constexpr float ATTACK_COEFF = 0.8f;   // fraction of old value kept when rising
-    constexpr float DECAY_COEFF  = 0.15f;  // fraction of old value kept when falling
+    constexpr float ATTACK_COEFF = 0.4f;   // fast rise (~20ms time constant at 60fps)
+    constexpr float DECAY_COEFF  = 0.96f;  // slow fall (~400ms time constant at 60fps)
     constexpr int   TARGET_FPS   = 60;
 }
 
@@ -44,7 +44,7 @@ void RenderEngine::renderLoop() {
 
         if (currentFrame == lastFrame_) {
             staleCount_++;
-            if (staleCount_ > 6) {  // ~100ms at 60fps
+            if (staleCount_ > 12) {  // ~200ms at 60fps
                 for (auto& m : data.magnitudes)
                     m = 0.0f;
             }
