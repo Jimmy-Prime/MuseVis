@@ -34,6 +34,8 @@ target_link_libraries(musevis-tui PRIVATE
 target_compile_options(musevis-tui PRIVATE -Wall -Wextra -O2)
 
 if(BUILD_TESTING)
+    find_program(BASH_EXECUTABLE bash)
+
     add_executable(shared_state_contract_test
         tests/shared_state_contract_test.cpp
     )
@@ -77,6 +79,20 @@ if(BUILD_TESTING)
     target_include_directories(presentation_smoothing_test PRIVATE include src)
     target_link_libraries(presentation_smoothing_test PRIVATE m)
     add_test(NAME presentation_smoothing_test COMMAND presentation_smoothing_test)
+
+    add_executable(terminal_presentation_test
+        tests/terminal_presentation_test.cpp
+    )
+    target_include_directories(terminal_presentation_test PRIVATE include src)
+    target_link_libraries(terminal_presentation_test PRIVATE m)
+    add_test(NAME terminal_presentation_test COMMAND terminal_presentation_test)
+
+    if(BASH_EXECUTABLE)
+        add_test(NAME build_scripts_test
+            COMMAND "${BASH_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/build_scripts_test.sh")
+        add_test(NAME run_scripts_test
+            COMMAND "${BASH_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/run_scripts_test.sh")
+    endif()
 endif()
 
 # ── LED target (requires rpi_ws281x submodule) ───────────────────────────────

@@ -27,12 +27,20 @@ git submodule add https://github.com/jgarff/rpi_ws281x.git third_party/rpi_ws281
 Step 3: Build
 ----------------------------------------------------------------------
 
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j$(nproc)
-ctest --test-dir build --output-on-failure
+./build-tui.sh
+./build-led.sh
+
+# Or build manually into the same output directories:
+cmake -S . -B build/tui -DCMAKE_BUILD_TYPE=Release
+cmake --build build/tui --target musevis-tui -j$(nproc)
+ctest --test-dir build/tui --output-on-failure
+
+cmake -S . -B build/led -DCMAKE_BUILD_TYPE=Release
+cmake --build build/led --target musevis -j$(nproc)
+ctest --test-dir build/led --output-on-failure
 
 # For the smallest Pi build, you can skip test target generation:
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+cmake -S . -B build/tui -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 
 ----------------------------------------------------------------------
 Step 4: Set up audio capture (null-sink + loopback)
@@ -121,12 +129,21 @@ pactl list short sources   # should show musevis_sink.monitor
 Step 6: Run MuseVis
 ----------------------------------------------------------------------
 
-# Needs root (or cap_sys_rawio) for DMA access to GPIO:
-sudo build/musevis musevis_sink.monitor
+# TUI: builds and runs the current branch's TUI binary
+./run-tui.sh musevis_sink.monitor
+
+# Or run the explicit build output directly
+build/tui/musevis-tui musevis_sink.monitor
+
+# LED: needs root (or cap_sys_rawio) for DMA access to GPIO
+sudo ./run-led.sh musevis_sink.monitor
 
 # Alternative — grant capability so root isn't needed every time:
-sudo setcap cap_sys_rawio+ep build/musevis
-build/musevis musevis_sink.monitor
+sudo setcap cap_sys_rawio+ep build/led/musevis
+build/led/musevis musevis_sink.monitor
+
+# Avoid old binaries from earlier builds:
+# prefer ./run-tui.sh and ./run-led.sh, or use the explicit build/tui and build/led paths above.
 
 ----------------------------------------------------------------------
 Hardware notes

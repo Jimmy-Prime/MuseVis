@@ -2,6 +2,7 @@
 #include "dsp/TeensyBandLayout.h"
 #include "led/ColorMapper.h"
 #include "render/PresentationSmoothing.h"
+#include "render/TerminalPresentation.h"
 
 #include <algorithm>
 #include <chrono>
@@ -12,7 +13,6 @@
 namespace musevis {
 
 namespace {
-    constexpr float PEAK_DECAY      = 0.02f; // light visual persistence for peak dots
     constexpr int   TARGET_FPS      = 30;     // terminal doesn't need 60
     constexpr int   BAR_WIDTH       = 4;        // characters per band column
     constexpr int   DISPLAY_HEIGHT  = LEDS_PER_BAND;
@@ -82,15 +82,7 @@ void TerminalRenderer::renderLoop() {
 
 void TerminalRenderer::drawFrame(const BandData& data) {
     // Keep only light presentation smoothing + peak hold in the renderer.
-    for (int b = 0; b < NUM_BANDS; ++b) {
-        const float raw = data.magnitudes[b];
-        smoothed_[b] = clampQuietTail(smoothPresentationLevel(smoothed_[b], raw), raw);
-
-        if (smoothed_[b] > peaks_[b])
-            peaks_[b] = smoothed_[b];
-        else
-            peaks_[b] = std::max(0.0f, peaks_[b] - PEAK_DECAY);
-    }
+    applyTerminalPresentationFrame(smoothed_, peaks_, data);
 
     // Build frame into a string buffer to reduce write() calls
     std::string frame;

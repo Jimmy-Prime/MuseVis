@@ -43,8 +43,8 @@ Both binaries require a single positional argument:
 Example:
 
 ```bash
-build/musevis-tui musevis_sink.monitor
-build/musevis musevis_sink.monitor
+./run-tui.sh musevis_sink.monitor
+sudo ./run-led.sh musevis_sink.monitor
 ```
 
 If no source is provided, the program prints usage text and exits with status `1`.
@@ -236,6 +236,13 @@ The root `CMakeLists.txt` currently:
 - Includes CTest via `include(CTest)` and honors `BUILD_TESTING`
 - Uses `pkg-config` to locate PulseAudio
 - Compiles with `-Wall -Wextra -O2`
+
+Helper scripts in the repository root build into distinct directories to avoid stale-binary confusion:
+
+- `build-tui.sh` -> `build/tui/musevis-tui`
+- `build-led.sh` -> `build/led/musevis`
+- `run-tui.sh` builds then executes `build/tui/musevis-tui`
+- `run-led.sh` builds then executes `build/led/musevis`
 
 Targets:
 
