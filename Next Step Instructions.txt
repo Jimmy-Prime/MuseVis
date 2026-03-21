@@ -56,7 +56,7 @@ pactl load-module module-loopback \
 pactl set-default-sink musevis_sink
 
 # Verify it works (play music, should see non-zero RMS):
-parec --source=musevis_sink.monitor --rate=44100 --channels=2 --format=s16le \
+parec -d musevis_sink.monitor --rate=44100 --channels=2 --format=s16le \
     | sox -t raw -r 44100 -e signed -b 16 -c 2 - -n stat 2>&1
 
 ----------------------------------------------------------------------
