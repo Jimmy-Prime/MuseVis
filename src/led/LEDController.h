@@ -10,7 +10,7 @@ public:
     LEDController();
     ~LEDController();
 
-    // Write NUM_BANDS * LEDS_PER_BAND pixels to the LED strip.
+    // Write DISPLAY_BANDS * LEDS_PER_BAND pixels to the LED strip.
     void render(const ws2811_led_t* pixels);
 
 private:

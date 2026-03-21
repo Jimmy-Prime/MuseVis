@@ -1,27 +1,32 @@
 #include "render/TerminalRenderer.h"
+#include "render/BandDisplayMapper.h"
 #include "led/ColorMapper.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <numeric>
 #include <string>
 
 namespace musevis {
 
 namespace {
-    constexpr float ATTACK_COEFF    = 0.2f;   // fast rise: 80% toward new value per frame
-    constexpr float DECAY_COEFF     = 0.92f;  // slow fall: 8% toward new value per frame
+    constexpr float ATTACK_COEFF    = 0.05f;  // light presentation smoothing; analyzer owns the envelope
+    constexpr float DECAY_COEFF     = 0.65f;  // light falloff to avoid fighting analyzer dynamics
     constexpr float PEAK_DECAY      = 0.012f; // slow fall for peak dots
     constexpr int   TARGET_FPS      = 30;     // terminal doesn't need 60
     constexpr int   BAR_WIDTH       = 4;        // characters per band column
     constexpr int   DISPLAY_HEIGHT  = LEDS_PER_BAND;
+    constexpr float QUIET_THRESHOLD = 0.035f;
+    constexpr auto  QUIET_DELAY     = std::chrono::seconds(8);
+    constexpr auto  QUIET_FADE      = std::chrono::seconds(2);
 
-    const char* BAND_LABELS[NUM_BANDS] = {
-        " 20", " 31", " 49", " 77",
-        "122", "193", "306", "485",
-        "769", "1.2k", "1.9k", "3.1k",
-        "4.9k", "7.7k", " 12k", " 19k",
+    const char* BAND_LABELS[DISPLAY_BANDS] = {
+        " 40", " 61", " 94", "144",
+        "222", "340", "521", "800",
+        "1.2k", "1.5k", "1.9k", "2.9k",
+        "4.4k", "6.8k", " 10k", " 16k",
     };
 }
 
@@ -62,6 +67,7 @@ void TerminalRenderer::renderLoop() {
     using clock = std::chrono::steady_clock;
     const auto frameDuration = std::chrono::microseconds(1'000'000 / TARGET_FPS);
     auto nextFrame = clock::now();
+    quietSince_ = nextFrame;
 
     while (running_) {
         // Detect stale audio: if frameCounter hasn't advanced, audio thread
@@ -88,9 +94,38 @@ void TerminalRenderer::renderLoop() {
 }
 
 void TerminalRenderer::drawFrame(const BandData& data) {
+    const auto displayBands = projectToDisplayBands(data);
+    const float average = std::accumulate(displayBands.begin(), displayBands.end(), 0.0f) /
+                          static_cast<float>(displayBands.size());
+    const auto now = std::chrono::steady_clock::now();
+
+    if (average < QUIET_THRESHOLD) {
+        if (!quiet_) {
+            quiet_ = true;
+            quietSince_ = now;
+        }
+    } else {
+        quiet_ = false;
+        quietFade_ = 1.0f;
+    }
+
+    if (quiet_) {
+        const auto quietFor = now - quietSince_;
+        if (quietFor > QUIET_DELAY) {
+            const float fadeProgress = std::clamp(
+                std::chrono::duration<float>(quietFor - QUIET_DELAY).count() /
+                    std::chrono::duration<float>(QUIET_FADE).count(),
+                0.0f,
+                1.0f);
+            quietFade_ = 1.0f - fadeProgress;
+        } else {
+            quietFade_ = 1.0f;
+        }
+    }
+
     // Attack / decay smoothing + peak hold
-    for (int b = 0; b < NUM_BANDS; ++b) {
-        const float raw = data.magnitudes[b];
+    for (int b = 0; b < DISPLAY_BANDS; ++b) {
+        const float raw = displayBands[b] * quietFade_;
         const float coeff = (raw > smoothed_[b]) ? ATTACK_COEFF : DECAY_COEFF;
         smoothed_[b] = coeff * smoothed_[b] + (1.0f - coeff) * raw;
 
@@ -118,7 +153,7 @@ void TerminalRenderer::drawFrame(const BandData& data) {
         frame += "\033[38;5;240m";  // dim gray for labels
         frame += label;
 
-        for (int b = 0; b < NUM_BANDS; ++b) {
+        for (int b = 0; b < DISPLAY_BANDS; ++b) {
             const int litCount = std::clamp(
                 static_cast<int>(std::round(smoothed_[b] * DISPLAY_HEIGHT)),
                 0, DISPLAY_HEIGHT);
@@ -127,7 +162,7 @@ void TerminalRenderer::drawFrame(const BandData& data) {
                 0, DISPLAY_HEIGHT);
 
             // Compute this band's color (HSV hue sweep red→violet)
-            const float hue = (static_cast<float>(b) / (NUM_BANDS - 1)) * 270.0f;
+            const float hue = (static_cast<float>(b) / (DISPLAY_BANDS - 1)) * 270.0f;
             const RGB c = hsvToRgb(hue, 1.0f, 1.0f);
 
             if (row <= litCount) {
@@ -159,13 +194,13 @@ void TerminalRenderer::drawFrame(const BandData& data) {
 
     // Bottom axis: separator line
     frame += "     ";
-    for (int b = 0; b < NUM_BANDS; ++b)
+    for (int b = 0; b < DISPLAY_BANDS; ++b)
         frame += "────";
     frame += "\n";
 
     // Frequency labels
     frame += "     ";
-    for (int b = 0; b < NUM_BANDS; ++b) {
+    for (int b = 0; b < DISPLAY_BANDS; ++b) {
         char cell[8];
         std::snprintf(cell, sizeof(cell), "%-4s", BAND_LABELS[b]);
         frame += cell;

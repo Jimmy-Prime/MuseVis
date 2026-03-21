@@ -2,6 +2,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <thread>
 #include "musevis/SharedState.h"
 
@@ -27,9 +28,12 @@ private:
     std::thread    thread_;
 
     // Per-band smoothed magnitudes (attack/decay filter state)
-    std::array<float, NUM_BANDS> smoothed_{};
+    std::array<float, DISPLAY_BANDS> smoothed_{};
     uint64_t lastFrame_{0};
     int staleCount_{0};
+    bool quiet_{false};
+    std::chrono::steady_clock::time_point quietSince_{};
+    float quietFade_{1.0f};
 };
 
 } // namespace musevis

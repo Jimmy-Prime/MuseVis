@@ -9,7 +9,7 @@ namespace musevis {
 namespace {
     constexpr int GPIO_PIN    = 18;   // PWM; use 10 (SPI MOSI) if 3.5mm audio jack is in use
     constexpr int DMA_CHANNEL = 5;
-    constexpr int LED_COUNT   = NUM_BANDS * LEDS_PER_BAND;
+    constexpr int LED_COUNT   = DISPLAY_BANDS * LEDS_PER_BAND;
 }
 
 LEDController::LEDController() {

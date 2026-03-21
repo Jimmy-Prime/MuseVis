@@ -1,8 +1,9 @@
 #include "audio/AudioCapture.h"
-#include "dsp/FFTProcessor.h"
+#include "dsp/AnalyzerFactory.h"
 
 #include <pulse/error.h>
 #include <pulse/simple.h>
+#include <iostream>
 #include <stdexcept>
 #include <vector>
 
@@ -48,7 +49,11 @@ void AudioCapture::captureLoop() {
     if (!pa)
         throw std::runtime_error(std::string("pa_simple_new failed: ") + pa_strerror(error));
 
-    FFTProcessor fft(state_);
+    auto observer = makeBandObserverFromEnvironment();
+    const auto analyzerKind = analyzerKindFromEnvironment();
+    auto analyzer = makeAnalyzer(analyzerKind, state_, observer.get());
+
+    std::cout << "MuseVis analyzer: " << analyzerKindName(analyzerKind) << '\n';
 
     // CHUNK_SIZE stereo frames × 2 channels × sizeof(float)
     constexpr int bufBytes = CHUNK_SIZE * NUM_CHANNELS * sizeof(float);
@@ -58,7 +63,7 @@ void AudioCapture::captureLoop() {
         if (pa_simple_read(pa, buf.data(), bufBytes, &error) < 0)
             break;  // device closed or error
 
-        fft.process(buf.data(), CHUNK_SIZE);
+        analyzer->process(buf.data(), CHUNK_SIZE);
     }
 
     pa_simple_free(pa);

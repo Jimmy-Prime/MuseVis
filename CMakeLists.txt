@@ -14,7 +14,10 @@ pkg_check_modules(FFTW3 REQUIRED fftw3)
 add_executable(musevis-tui
     src/main_tui.cpp
     src/audio/AudioCapture.cpp
+    src/debug/BandCsvWriter.cpp
+    src/dsp/AnalyzerFactory.cpp
     src/dsp/FFTProcessor.cpp
+    src/dsp/FilterBankProcessor.cpp
     src/render/TerminalRenderer.cpp
 )
 
@@ -42,7 +45,10 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/rpi_ws281x/CMakeLists.txt")
     add_executable(musevis
         src/main.cpp
         src/audio/AudioCapture.cpp
+        src/debug/BandCsvWriter.cpp
+        src/dsp/AnalyzerFactory.cpp
         src/dsp/FFTProcessor.cpp
+        src/dsp/FilterBankProcessor.cpp
         src/led/LEDController.cpp
         src/render/RenderEngine.cpp
     )
@@ -69,3 +75,15 @@ else()
         "rpi_ws281x submodule not found — skipping LED target.\n"
         "  To enable: git submodule add https://github.com/jgarff/rpi_ws281x.git third_party/rpi_ws281x")
 endif()
+
+add_executable(musevis-dsp-tests
+    tests/filter_bank_tests.cpp
+    src/dsp/FilterBankProcessor.cpp
+)
+
+target_include_directories(musevis-dsp-tests PRIVATE
+    include
+    src
+)
+
+target_compile_options(musevis-dsp-tests PRIVATE -Wall -Wextra -O2)

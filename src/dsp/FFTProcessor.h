@@ -3,15 +3,19 @@
 #include <array>
 #include <vector>
 #include <fftw3.h>
-#include "musevis/SharedState.h"
+#include "dsp/BandAnalyzer.h"
 #include "dsp/BandMapper.h"
 
 namespace musevis {
 
-class FFTProcessor {
+class FFTProcessor final : public BandAnalyzer {
 public:
-    explicit FFTProcessor(SharedState& state);
+    explicit FFTProcessor(SharedState& state, BandFrameObserver* observer = nullptr);
     ~FFTProcessor();
+
+    const char* name() const override {
+        return "fft";
+    }
 
     // Process one chunk of interleaved stereo float samples (CHUNK_SIZE frames).
     void process(const float* stereoFrames, int numFrames);
@@ -19,8 +23,7 @@ public:
 private:
     void computeBands();
 
-    SharedState& state_;
-    std::array<BandBoundary, NUM_BANDS> bands_;
+    std::vector<BandBoundary> bands_;
 
     // Rolling overlap buffer: always holds the last FFT_SIZE mono samples.
     std::vector<double> overlapBuf_;

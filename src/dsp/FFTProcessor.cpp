@@ -11,9 +11,9 @@
 
 namespace musevis {
 
-FFTProcessor::FFTProcessor(SharedState& state)
-    : state_(state)
-    , bands_(computeBandBoundaries())
+FFTProcessor::FFTProcessor(SharedState& state, BandFrameObserver* observer)
+    : BandAnalyzer(state, observer)
+    , bands_(computeBandBoundaries(FFT_BANDS))
     , overlapBuf_(FFT_SIZE, 0.0)
     , hannWindow_(FFT_SIZE)
 {
@@ -55,16 +55,16 @@ void FFTProcessor::process(const float* stereoFrames, int numFrames) {
 }
 
 void FFTProcessor::computeBands() {
-    auto& back = state_.backBuffer();
-
     // dB-scale mapping: show DYNAMIC_RANGE_DB of range below the running peak.
     // This lets quiet high-frequency content remain visible even when bass dominates.
     constexpr float DYNAMIC_RANGE_DB = 48.0f;
 
     float maxMag = 0.0f;
-    std::array<float, NUM_BANDS> rawMags{};
+    std::array<float, FFT_BANDS> rawMags{};
+    BandData output;
+    output.bandCount = FFT_BANDS;
 
-    for (int b = 0; b < NUM_BANDS; ++b) {
+    for (int b = 0; b < FFT_BANDS; ++b) {
         double sumSq = 0.0;
         int    count = 0;
 
@@ -88,18 +88,18 @@ void FFTProcessor::computeBands() {
     runningMax_ = std::max(runningMax_, 1e-9);
 
     const float refMax = static_cast<float>(runningMax_);
-    for (int b = 0; b < NUM_BANDS; ++b) {
+    for (int b = 0; b < FFT_BANDS; ++b) {
         if (rawMags[b] < 1e-10f) {
-            back.magnitudes[b] = 0.0f;
+            output.magnitudes[b] = 0.0f;
         } else {
             // dB relative to running max: 0 dB = loudest, negative = quieter
             float db = 20.0f * std::log10(rawMags[b] / refMax);
             // Map [-DYNAMIC_RANGE_DB, 0] → [0, 1]
-            back.magnitudes[b] = std::clamp(1.0f + db / DYNAMIC_RANGE_DB, 0.0f, 1.0f);
+            output.magnitudes[b] = std::clamp(1.0f + db / DYNAMIC_RANGE_DB, 0.0f, 1.0f);
         }
     }
 
-    state_.swapBuffers();
+    publish(output);
 }
 
 } // namespace musevis
