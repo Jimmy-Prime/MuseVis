@@ -1,32 +1,156 @@
-All files remain on master as-is. No worktree to clean up since we worked directly in the repo.                             
-                                                                                                                              
-  Here's a summary of what was implemented:                                                                                   
-   
-  13 files created:                                                                                                           
-  - include/musevis/SharedState.h — constants + atomic double-buffer
-  - src/audio/AudioCapture.h/.cpp — PulseAudio capture thread (PA_SAMPLE_FLOAT32LE)                                           
-  - src/dsp/BandMapper.h — log-spaced band boundary computation                    
-  - src/dsp/FFTProcessor.h/.cpp — FFTW3, Hann window, 50% overlap, auto-normalizing band RMS                                  
-  - src/led/ColorMapper.h — HSV→RGB inline                                                                                    
-  - src/led/LEDController.h/.cpp — ws2811_init/render, GRB packing, GPIO 18 / DMA 5                                           
-  - src/render/RenderEngine.h/.cpp — 60 FPS loop, attack=0.8/decay=0.15 smoothing                                             
-  - src/main.cpp — SIGINT/SIGTERM handler, wires all components                                                               
-  - CMakeLists.txt — libpulse + fftw3 + rpi_ws281x submodule                                                                  
-  - .gitignore — excludes build/                                                                                              
-                                                                                                                              
-  Next steps on the Pi:                                                                                                       
-  # 1. Add the LED submodule                                                                                                  
-  git submodule add https://github.com/jgarff/rpi_ws281x.git third_party/rpi_ws281x
-                                                                                                                              
-  # 2. Install deps                                                                                                           
-  sudo apt install -y build-essential cmake pkg-config libpulse-dev libfftw3-dev                                              
-                                                                                                                              
-  # 3. Build                                                                                                                  
-  cmake -B build -DCMAKE_BUILD_TYPE=Release                 
-  cmake --build build -j$(nproc)                                                                                              
-                                                                                                                              
-  # 4. Run (needs root or cap_sys_rawio for DMA)
-  sudo build/musevis musevis_sink.monitor                                                                                     
-                                                            
-  GPIO note: If using the Pi's 3.5mm audio jack, change GPIO_PIN in LEDController.cpp from 18 to 10 and configure rpi_ws281x  
-  for SPI mode to avoid the PWM conflict. 
+MuseVis — Setup Instructions for Raspberry Pi OS (Bookworm)
+============================================================
+
+Raspberry Pi OS Bookworm uses PipeWire by default, which includes a
+PulseAudio compatibility layer (pipewire-pulse). All pa_simple / libpulse
+APIs work out of the box — no code changes needed.
+
+Note: If using Raspberry Pi OS Lite (headless), PipeWire is NOT
+pre-installed. Install it first:
+  sudo apt install -y pipewire pipewire-pulse wireplumber
+
+----------------------------------------------------------------------
+Step 1: Install build dependencies
+----------------------------------------------------------------------
+
+sudo apt install -y build-essential cmake git pkg-config \
+    libpulse-dev libfftw3-dev
+
+----------------------------------------------------------------------
+Step 2: Add the LED driver submodule
+----------------------------------------------------------------------
+
+cd /path/to/MuseVis
+git submodule add https://github.com/jgarff/rpi_ws281x.git third_party/rpi_ws281x
+
+----------------------------------------------------------------------
+Step 3: Build
+----------------------------------------------------------------------
+
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+
+----------------------------------------------------------------------
+Step 4: Set up audio capture (null-sink + loopback)
+----------------------------------------------------------------------
+
+The null-sink intercepts system audio; the loopback forwards it to your
+real speakers so you hear it AND MuseVis can analyze it.
+
+# Create the virtual sink
+pactl load-module module-null-sink \
+    sink_name=musevis_sink \
+    sink_properties=device.description="MuseVis_Capture"
+
+# Find your real hardware sink name
+pactl list short sinks
+# Look for something like: alsa_output.usb-... or alsa_output.platform-...
+
+# Create the loopback (replace <YOUR_HARDWARE_SINK> with the name above)
+pactl load-module module-loopback \
+    source=musevis_sink.monitor \
+    sink=<YOUR_HARDWARE_SINK> \
+    latency_msec=20
+
+# Route all audio through the virtual sink
+pactl set-default-sink musevis_sink
+
+# Verify it works (play music, should see non-zero RMS):
+parec --source=musevis_sink.monitor --rate=44100 --channels=2 --format=s16le \
+    | sox -t raw -r 44100 -e signed -b 16 -c 2 - -n stat 2>&1
+
+----------------------------------------------------------------------
+Step 5: Make audio capture persistent (survives reboot)
+----------------------------------------------------------------------
+
+PipeWire does NOT read ~/.config/pulse/default.pa. Instead, create a
+PipeWire config drop-in and a systemd user service for the loopback.
+
+# 5a. Persistent null-sink via PipeWire config
+mkdir -p ~/.config/pipewire/pipewire.conf.d
+
+cat > ~/.config/pipewire/pipewire.conf.d/musevis-sink.conf << 'EOF'
+context.objects = [
+    {   factory = adapter
+        args = {
+            factory.name     = support.null-audio-sink
+            node.name        = "musevis_sink"
+            node.description = "MuseVis Capture"
+            media.class      = Audio/Sink
+            audio.position   = [ FL FR ]
+        }
+    }
+]
+EOF
+
+# 5b. Persistent loopback via systemd user service
+mkdir -p ~/.config/systemd/user
+
+cat > ~/.config/systemd/user/musevis-loopback.service << EOF
+[Unit]
+Description=MuseVis audio loopback
+After=pipewire-pulse.service
+
+[Service]
+ExecStart=/usr/bin/pw-loopback \
+    --capture-props='media.class=Audio/Sink node.target=musevis_sink' \
+    --playback-props='node.target=<YOUR_HARDWARE_SINK>'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+EOF
+
+# Replace <YOUR_HARDWARE_SINK> in the service file, then enable:
+systemctl --user daemon-reload
+systemctl --user enable --now musevis-loopback.service
+
+# 5c. Set musevis_sink as default (persists via WirePlumber)
+wpctl status                       # find the musevis_sink node ID
+wpctl set-default <SINK_NODE_ID>   # e.g. wpctl set-default 47
+
+# Reboot and verify:
+pactl list short sources   # should show musevis_sink.monitor
+
+----------------------------------------------------------------------
+Step 6: Run MuseVis
+----------------------------------------------------------------------
+
+# Needs root (or cap_sys_rawio) for DMA access to GPIO:
+sudo build/musevis musevis_sink.monitor
+
+# Alternative — grant capability so root isn't needed every time:
+sudo setcap cap_sys_rawio+ep build/musevis
+build/musevis musevis_sink.monitor
+
+----------------------------------------------------------------------
+Hardware notes
+----------------------------------------------------------------------
+
+Wiring:
+  - LED data line -> GPIO 18 (pin 12) through 300-470 ohm resistor
+  - LED power: external 5V supply (256 LEDs at full white ~ 15A)
+  - Common ground between Pi and LED power supply
+
+GPIO conflict:
+  GPIO 18 (PWM) conflicts with the Pi's 3.5mm audio jack.
+  If using 3.5mm audio output, change GPIO_PIN in
+  src/led/LEDController.cpp from 18 to 10 (SPI MOSI) and use
+  SPI mode in rpi_ws281x. HDMI and USB audio have no conflict.
+
+----------------------------------------------------------------------
+Files created
+----------------------------------------------------------------------
+
+13 source files:
+  include/musevis/SharedState.h     — constants + atomic double-buffer
+  src/audio/AudioCapture.h/.cpp     — PulseAudio capture thread (PA_SAMPLE_FLOAT32LE)
+  src/dsp/BandMapper.h              — log-spaced band boundary computation
+  src/dsp/FFTProcessor.h/.cpp       — FFTW3, Hann window, 50% overlap, auto-normalizing band RMS
+  src/led/ColorMapper.h             — HSV to RGB inline
+  src/led/LEDController.h/.cpp      — ws2811_init/render, GRB packing, GPIO 18 / DMA 5
+  src/render/RenderEngine.h/.cpp    — 60 FPS loop, attack=0.8/decay=0.15 smoothing
+  src/main.cpp                      — SIGINT/SIGTERM handler, wires all components
+  CMakeLists.txt                    — libpulse + fftw3 + rpi_ws281x submodule
+  .gitignore                        — excludes build/
