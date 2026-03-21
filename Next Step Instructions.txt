@@ -14,7 +14,7 @@ Step 1: Install build dependencies
 ----------------------------------------------------------------------
 
 sudo apt install -y build-essential cmake git pkg-config \
-    libpulse-dev libfftw3-dev
+    libpulse-dev
 
 ----------------------------------------------------------------------
 Step 2: Add the LED driver submodule
@@ -29,6 +29,10 @@ Step 3: Build
 
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
+ctest --test-dir build --output-on-failure
+
+# For the smallest Pi build, you can skip test target generation:
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 
 ----------------------------------------------------------------------
 Step 4: Set up audio capture (null-sink + loopback)
@@ -130,7 +134,7 @@ Hardware notes
 
 Wiring:
   - LED data line -> GPIO 18 (pin 12) through 300-470 ohm resistor
-  - LED power: external 5V supply (256 LEDs at full white ~ 15A)
+  - LED power: external 5V supply (224 LEDs at full white ~ 13A)
   - Common ground between Pi and LED power supply
 
 GPIO conflict:
@@ -143,14 +147,20 @@ GPIO conflict:
 Files created
 ----------------------------------------------------------------------
 
-13 source files:
+Core source files:
   include/musevis/SharedState.h     — constants + atomic double-buffer
-  src/audio/AudioCapture.h/.cpp     — PulseAudio capture thread (PA_SAMPLE_FLOAT32LE)
-  src/dsp/BandMapper.h              — log-spaced band boundary computation
-  src/dsp/FFTProcessor.h/.cpp       — FFTW3, Hann window, 50% overlap, auto-normalizing band RMS
+  src/audio/AudioCapture.h/.cpp     — PulseAudio capture thread with swappable analyzer
+  src/dsp/BandAnalyzer.h            — analyzer interface
+  src/dsp/AnalyzerFactory.h/.cpp    — selects the default analyzer
+  src/dsp/BiquadFilter.h            — band-pass filter helper
+  src/dsp/FilterBankProcessor.h/.cpp — 14-band Teensy-style filter bank + envelopes + AGC
+  src/dsp/TeensyBandLayout.h        — center frequencies, labels, and per-band trims
   src/led/ColorMapper.h             — HSV to RGB inline
   src/led/LEDController.h/.cpp      — ws2811_init/render, GRB packing, GPIO 18 / DMA 5
-  src/render/RenderEngine.h/.cpp    — 60 FPS loop, attack=0.8/decay=0.15 smoothing
+  src/render/PresentationSmoothing.h — light renderer-side smoothing helpers
+  src/render/RenderEngine.h/.cpp    — 60 FPS loop, 14-band LED renderer
+  src/render/TerminalRenderer.h/.cpp — 30 FPS terminal renderer
   src/main.cpp                      — SIGINT/SIGTERM handler, wires all components
-  CMakeLists.txt                    — libpulse + fftw3 + rpi_ws281x submodule
+  src/main_tui.cpp                  — terminal entry point
+  CMakeLists.txt                    — libpulse + rpi_ws281x submodule
   .gitignore                        — excludes build/

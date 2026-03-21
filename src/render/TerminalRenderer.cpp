@@ -1,5 +1,7 @@
 #include "render/TerminalRenderer.h"
+#include "dsp/TeensyBandLayout.h"
 #include "led/ColorMapper.h"
+#include "render/PresentationSmoothing.h"
 
 #include <algorithm>
 #include <chrono>
@@ -10,19 +12,10 @@
 namespace musevis {
 
 namespace {
-    constexpr float ATTACK_COEFF    = 0.2f;   // fast rise: 80% toward new value per frame
-    constexpr float DECAY_COEFF     = 0.92f;  // slow fall: 8% toward new value per frame
-    constexpr float PEAK_DECAY      = 0.012f; // slow fall for peak dots
+    constexpr float PEAK_DECAY      = 0.02f; // light visual persistence for peak dots
     constexpr int   TARGET_FPS      = 30;     // terminal doesn't need 60
     constexpr int   BAR_WIDTH       = 4;        // characters per band column
     constexpr int   DISPLAY_HEIGHT  = LEDS_PER_BAND;
-
-    const char* BAND_LABELS[NUM_BANDS] = {
-        " 20", " 31", " 49", " 77",
-        "122", "193", "306", "485",
-        "769", "1.2k", "1.9k", "3.1k",
-        "4.9k", "7.7k", " 12k", " 19k",
-    };
 }
 
 TerminalRenderer::TerminalRenderer(SharedState& state)
@@ -88,11 +81,10 @@ void TerminalRenderer::renderLoop() {
 }
 
 void TerminalRenderer::drawFrame(const BandData& data) {
-    // Attack / decay smoothing + peak hold
+    // Keep only light presentation smoothing + peak hold in the renderer.
     for (int b = 0; b < NUM_BANDS; ++b) {
         const float raw = data.magnitudes[b];
-        const float coeff = (raw > smoothed_[b]) ? ATTACK_COEFF : DECAY_COEFF;
-        smoothed_[b] = coeff * smoothed_[b] + (1.0f - coeff) * raw;
+        smoothed_[b] = clampQuietTail(smoothPresentationLevel(smoothed_[b], raw), raw);
 
         if (smoothed_[b] > peaks_[b])
             peaks_[b] = smoothed_[b];
@@ -167,7 +159,7 @@ void TerminalRenderer::drawFrame(const BandData& data) {
     frame += "     ";
     for (int b = 0; b < NUM_BANDS; ++b) {
         char cell[8];
-        std::snprintf(cell, sizeof(cell), "%-4s", BAND_LABELS[b]);
+        std::snprintf(cell, sizeof(cell), "%-4s", kTeensyBandLayout[b].label);
         frame += cell;
     }
     frame += "\n";

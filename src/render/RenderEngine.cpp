@@ -1,6 +1,7 @@
 #include "render/RenderEngine.h"
 #include "led/LEDController.h"
 #include "led/ColorMapper.h"
+#include "render/PresentationSmoothing.h"
 
 #include <ws2811.h>
 #include <algorithm>
@@ -10,8 +11,6 @@
 namespace musevis {
 
 namespace {
-    constexpr float ATTACK_COEFF = 0.4f;   // fast rise (~20ms time constant at 60fps)
-    constexpr float DECAY_COEFF  = 0.96f;  // slow fall (~400ms time constant at 60fps)
     constexpr int   TARGET_FPS   = 60;
 }
 
@@ -60,21 +59,20 @@ void RenderEngine::renderLoop() {
 }
 
 void RenderEngine::buildFrame(const BandData& data) {
-    // Attack / decay smoothing per band
+    // Keep only light presentation smoothing here; the analyzer owns the envelope.
     for (int b = 0; b < NUM_BANDS; ++b) {
         const float raw = data.magnitudes[b];
-        const float coeff = (raw > smoothed_[b]) ? ATTACK_COEFF : DECAY_COEFF;
-        smoothed_[b] = coeff * smoothed_[b] + (1.0f - coeff) * raw;
+        smoothed_[b] = clampQuietTail(smoothPresentationLevel(smoothed_[b], raw), raw);
     }
 
     // Build GRB pixel array
-    ws2811_led_t pixels[NUM_BANDS * LEDS_PER_BAND]{};
+    ws2811_led_t pixels[LED_COUNT]{};
 
     for (int b = 0; b < NUM_BANDS; ++b) {
         const int litCount = std::clamp(
             static_cast<int>(std::round(smoothed_[b] * LEDS_PER_BAND)), 0, LEDS_PER_BAND);
 
-        // Hue sweeps red (0°) → violet (270°) across the 16 bands
+        // Hue sweeps red (0°) → violet (270°) across the 14 bands
         const float hue = (static_cast<float>(b) / (NUM_BANDS - 1)) * 270.0f;
 
         for (int i = 0; i < LEDS_PER_BAND; ++i) {

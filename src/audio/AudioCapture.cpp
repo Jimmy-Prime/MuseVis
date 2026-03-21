@@ -1,30 +1,10 @@
 #include "audio/AudioCapture.h"
-#include "dsp/FFTProcessor.h"
 
 #include <pulse/error.h>
 #include <pulse/simple.h>
-#include <stdexcept>
 #include <vector>
 
 namespace musevis {
-
-AudioCapture::AudioCapture(SharedState& state, const std::string& sourceName)
-    : state_(state), sourceName_(sourceName) {}
-
-AudioCapture::~AudioCapture() {
-    stop();
-}
-
-void AudioCapture::start() {
-    running_ = true;
-    thread_  = std::thread(&AudioCapture::captureLoop, this);
-}
-
-void AudioCapture::stop() {
-    running_ = false;
-    if (thread_.joinable())
-        thread_.join();
-}
 
 void AudioCapture::captureLoop() {
     pa_sample_spec ss{};
@@ -48,8 +28,6 @@ void AudioCapture::captureLoop() {
     if (!pa)
         throw std::runtime_error(std::string("pa_simple_new failed: ") + pa_strerror(error));
 
-    FFTProcessor fft(state_);
-
     // CHUNK_SIZE stereo frames × 2 channels × sizeof(float)
     constexpr int bufBytes = CHUNK_SIZE * NUM_CHANNELS * sizeof(float);
     std::vector<float> buf(CHUNK_SIZE * NUM_CHANNELS);
@@ -58,7 +36,7 @@ void AudioCapture::captureLoop() {
         if (pa_simple_read(pa, buf.data(), bufBytes, &error) < 0)
             break;  // device closed or error
 
-        fft.process(buf.data(), CHUNK_SIZE);
+        processCapturedFrames(buf.data(), CHUNK_SIZE);
     }
 
     pa_simple_free(pa);
