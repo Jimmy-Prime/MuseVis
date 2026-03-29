@@ -75,11 +75,17 @@ void RenderEngine::buildFrame(const BandData& data) {
         // Hue sweeps red (0°) → violet (270°) across the 14 bands
         const float hue = (static_cast<float>(b) / (NUM_BANDS - 1)) * 270.0f;
 
+        const int bandBase = b * LEDS_PER_BAND;
+        // Serpentine layout: even bands run low→high, odd bands run high→low
+        const bool reversed = (b % 2) != 0;
+
         for (int i = 0; i < LEDS_PER_BAND; ++i) {
+            const int ledIndex = reversed ? (bandBase + LEDS_PER_BAND - 1 - i)
+                                          : (bandBase + i);
             if (i < litCount) {
                 const RGB c = hsvToRgb(hue, 1.0f, 1.0f);
                 // WS2811 GRB: 0x00GGRRBB
-                pixels[b * LEDS_PER_BAND + i] =
+                pixels[ledIndex] =
                     (static_cast<uint32_t>(c.g) << 16) |
                     (static_cast<uint32_t>(c.r) <<  8) |
                      static_cast<uint32_t>(c.b);

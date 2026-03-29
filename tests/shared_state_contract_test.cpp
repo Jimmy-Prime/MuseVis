@@ -31,7 +31,7 @@ int main() {
     musevis::SharedState state;
 
     ok = expectEqual("NUM_BANDS", musevis::NUM_BANDS, 14) && ok;
-    ok = expectEqual("LEDS_PER_BAND", musevis::LEDS_PER_BAND, 16) && ok;
+    ok = expectEqual("LEDS_PER_BAND", musevis::LEDS_PER_BAND, 20) && ok;
     ok = expectEqual("BandData size",
                      static_cast<int>(musevis::BandData{}.magnitudes.size()),
                      musevis::NUM_BANDS) && ok;

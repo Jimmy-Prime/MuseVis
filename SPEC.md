@@ -59,8 +59,8 @@ The following constants are defined in `include/musevis/SharedState.h`:
 - Channels: `2`
 - Audio chunk size: `1024` frames
 - Number of analysis/display bands: `14`
-- LEDs per band: `16`
-- Total LED count: `224`
+- LEDs per band: `20`
+- Total LED count: `280`
 
 ## Architecture
 
@@ -159,7 +159,7 @@ The terminal renderer:
 - Hides the cursor on start and restores it on stop
 - Clears the screen and redraws from the top-left every frame
 - Displays 14 columns, one per analysis band
-- Uses a display height of 16 rows
+- Uses a display height of 20 rows
 - Uses 4 character cells per column
 - Draws lit segments as 24-bit colored background blocks
 - Draws a peak marker as a thin horizontal line
@@ -178,15 +178,30 @@ LED rendering is implemented in `src/render/RenderEngine.cpp`.
 
 For each of the 14 bands:
 
-- The lightly smoothed band magnitude is scaled to a lit count from `0` to `16`
+- The lightly smoothed band magnitude is scaled to a lit count from `0` to `20`
 - The band hue is mapped linearly from `0` to `270` degrees
-- LEDs `0..litCount-1` are lit
+- LEDs are lit according to the serpentine layout (see below)
 - Remaining LEDs are left off
+
+### Serpentine LED Layout
+
+The physical LED strip uses a serpentine (zigzag) wiring pattern:
+
+- Even bands (0, 2, 4, …): LEDs run low-to-high (LED 0 = bottom of band)
+- Odd bands (1, 3, 5, …): LEDs run high-to-low (last LED in the band = bottom)
+
+Concretely, with 20 LEDs per band:
+
+- Band 0: LEDs 0–19, index 0 = lowest magnitude
+- Band 1: LEDs 20–39, index 39 = lowest magnitude
+- Band 2: LEDs 40–59, index 40 = lowest magnitude
+- Band 3: LEDs 60–79, index 79 = lowest magnitude
+- …and so on for all 14 bands.
 
 The renderer builds a flat pixel array of size:
 
 ```text
-NUM_BANDS * LEDS_PER_BAND = 224
+NUM_BANDS * LEDS_PER_BAND = 280
 ```
 
 Pixels are encoded in GRB byte order as required by `ws2811`.
@@ -199,7 +214,7 @@ Current configuration:
 
 - GPIO pin: `18`
 - DMA channel: `5`
-- LED count: `224`
+- LED count: `280`
 - Brightness: `255`
 - Strip type: `WS2811_STRIP_GRB`
 - Active channel: `channel[0]`
@@ -290,7 +305,7 @@ The repository assumes:
 Based on the current implementation:
 
 - Only one Pulse source can be captured per process instance
-- The renderer layout is fixed to 14 bands and 16 LEDs/rows per band
+- The renderer layout is fixed to 14 bands and 20 LEDs/rows per band
 - Runtime configuration is minimal and limited to the source name argument
 - No persistent configuration file format is implemented
 - Error reporting from the capture loop is minimal after startup failures

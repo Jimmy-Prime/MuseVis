@@ -6,7 +6,7 @@
 namespace musevis {
 
 constexpr int NUM_BANDS     = 14;
-constexpr int LEDS_PER_BAND = 16;
+constexpr int LEDS_PER_BAND = 20;
 constexpr int LED_COUNT     = NUM_BANDS * LEDS_PER_BAND;
 constexpr int CHUNK_SIZE    = 1024;
 constexpr int SAMPLE_RATE   = 44100;
