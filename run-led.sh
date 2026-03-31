@@ -6,4 +6,4 @@ BINARY_PATH="${BUILD_DIR:-build/led}/musevis"
 BUILD_SCRIPT="${BUILD_LED_SCRIPT:-$ROOT_DIR/build-led.sh}"
 
 "$BUILD_SCRIPT"
-exec "$ROOT_DIR/$BINARY_PATH" "$@"
+exec sudo "$ROOT_DIR/$BINARY_PATH" "$@"
