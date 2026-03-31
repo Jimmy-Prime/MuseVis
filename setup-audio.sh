@@ -260,6 +260,37 @@ else
     ok "Moved $STREAM_COUNT stream(s) to $SINK_NAME"
 fi
 
+# ── Step 6b: Pin loopback output to hardware sink ──────────────────────────
+# Setting the default sink above may cause PipeWire/stream-restore to move
+# the loopback's sink-input to musevis_sink (creating a feedback loop).
+# Explicitly re-pin it to the hardware sink.
+
+log "Pinning loopback output to hardware sink ($HW_SINK)..."
+
+LOOPBACK_SINKINPUT=$(pactl list short sink-inputs 2>/dev/null \
+    | while read -r id sink client rest; do
+        owner=$(pactl list sink-inputs 2>/dev/null | awk -v id="$id" '
+            /^Sink Input #/ { current = (index($0, "#"id) > 0) ? 1 : 0 }
+            current && /Owner Module:/ { print $3; exit }
+        ')
+        if [ "$owner" = "$LOOPBACK_MODULE_ID" ]; then
+            echo "$id"
+        fi
+    done) || true
+
+if [ -n "$LOOPBACK_SINKINPUT" ]; then
+    for id in $LOOPBACK_SINKINPUT; do
+        log "Moving loopback sink-input #$id → $HW_SINK"
+        if pactl move-sink-input "$id" "$HW_SINK" 2>&1; then
+            ok "Loopback output pinned to $HW_SINK"
+        else
+            warn "Failed to move loopback sink-input #$id"
+        fi
+    done
+else
+    warn "Could not find loopback sink-input to pin"
+fi
+
 echo ""
 
 # ── Step 7: Full state dump ─────────────────────────────────────────────────

@@ -15,9 +15,9 @@ const float kAttackAlpha = envelopeAlpha(4.0f);
 const float kReleaseAlpha = envelopeAlpha(180.0f);
 constexpr float kAgcAttackAlpha = 0.90f;
 constexpr float kAgcReleaseAlpha = 0.995f;
-constexpr float kNoiseGate = 0.0025f;
-constexpr float kQuietThreshold = 0.012f;
-constexpr int kQuietHoldFrames = 6;
+constexpr float kNoiseGate = 0.0005f;
+constexpr float kQuietThreshold = 0.002f;
+constexpr int kQuietHoldFrames = 20;
 
 } // namespace
 
@@ -83,7 +83,7 @@ void FilterBankProcessor::publishFrame() {
     }
 
     if (quietFrames_ >= kQuietHoldFrames) {
-        agcReference_ = 0.08f;
+        agcReference_ = 0.01f;
         for (auto& band : bands_) {
             band.envelope = 0.0f;
             band.level = 0.0f;

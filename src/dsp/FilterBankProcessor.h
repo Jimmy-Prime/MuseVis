@@ -26,7 +26,7 @@ private:
 
     SharedState& state_;
     std::array<BandState, NUM_BANDS> bands_;
-    float agcReference_{0.08f};
+    float agcReference_{0.01f};
     int quietFrames_{0};
 };
 
