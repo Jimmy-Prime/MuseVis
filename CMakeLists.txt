@@ -98,7 +98,9 @@ endif()
 # ── LED target (requires rpi_ws281x submodule) ───────────────────────────────
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/rpi_ws281x/CMakeLists.txt")
-    add_subdirectory(third_party/rpi_ws281x)
+    # EXCLUDE_FROM_ALL prevents rpi_ws281x's "test" target from conflicting
+    # with CTest's reserved "test" target.
+    add_subdirectory(third_party/rpi_ws281x EXCLUDE_FROM_ALL)
 
     add_executable(musevis
         src/main.cpp
