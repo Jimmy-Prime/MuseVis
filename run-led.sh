@@ -6,4 +6,5 @@ BINARY_PATH="${BUILD_DIR:-build/led}/musevis"
 BUILD_SCRIPT="${BUILD_LED_SCRIPT:-$ROOT_DIR/build-led.sh}"
 
 "$BUILD_SCRIPT"
-exec sudo "$ROOT_DIR/$BINARY_PATH" "$@"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+exec sudo -E "$ROOT_DIR/$BINARY_PATH" "$@"
