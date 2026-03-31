@@ -98,8 +98,9 @@ endif()
 # ── LED target (requires rpi_ws281x submodule) ───────────────────────────────
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/rpi_ws281x/CMakeLists.txt")
-    # EXCLUDE_FROM_ALL prevents rpi_ws281x's "test" target from conflicting
-    # with CTest's reserved "test" target.
+    # Disable rpi_ws281x's "test" executable which conflicts with CTest's
+    # reserved "test" target.  We only need the ws2811 library.
+    set(BUILD_TEST OFF CACHE BOOL "" FORCE)
     add_subdirectory(third_party/rpi_ws281x EXCLUDE_FROM_ALL)
 
     add_executable(musevis
