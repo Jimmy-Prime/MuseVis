@@ -6,5 +6,5 @@ BINARY_PATH="${BUILD_DIR:-build/led}/musevis"
 BUILD_SCRIPT="${BUILD_LED_SCRIPT:-$ROOT_DIR/build-led.sh}"
 
 "$BUILD_SCRIPT"
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-exec sudo -E "$ROOT_DIR/$BINARY_PATH" "$@"
+PULSE_SERVER="${PULSE_SERVER:-unix:/run/user/$(id -u)/pulse/native}"
+exec sudo PULSE_SERVER="$PULSE_SERVER" "$ROOT_DIR/$BINARY_PATH" "$@"
